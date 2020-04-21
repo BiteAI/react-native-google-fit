@@ -272,7 +272,7 @@ public class GoogleFitModule extends ReactContextBaseJavaModule implements Lifec
     }
 
     @ReactMethod
-    public void deleteFood(ReadableMap options,
+    public void deleteFood(ReadableMap foodSample,
                            Callback errorCallback,
                            Callback successCallback) {
         try {
