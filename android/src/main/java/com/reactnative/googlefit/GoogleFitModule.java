@@ -268,7 +268,9 @@ public class GoogleFitModule extends ReactContextBaseJavaModule implements Lifec
     }
 
     @ReactMethod
+
     public void deleteFood(ReadableMap options, Promise promise) {
+
         try {
             mGoogleFitManager.getCalorieHistory().deleteFood(options, promise);
         } catch (Exception e) {
