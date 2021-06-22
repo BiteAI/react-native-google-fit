@@ -11,8 +11,6 @@
 
 package com.reactnative.googlefit;
 
-import android.support.annotation.Nullable;
-import android.text.TextUtils;
 import android.util.Log;
 
 import com.facebook.react.bridge.Arguments;
@@ -20,33 +18,25 @@ import com.facebook.react.bridge.ReactContext;
 import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.WritableArray;
 import com.facebook.react.bridge.WritableMap;
-import com.facebook.react.modules.core.DeviceEventManagerModule;
+import com.google.android.gms.auth.api.signin.GoogleSignIn;
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
+import com.google.android.gms.auth.api.signin.GoogleSignInOptionsExtension;
 import com.google.android.gms.fitness.Fitness;
+import com.google.android.gms.fitness.FitnessOptions;
 import com.google.android.gms.fitness.data.Bucket;
 import com.google.android.gms.fitness.data.DataPoint;
 import com.google.android.gms.fitness.data.DataSet;
 import com.google.android.gms.fitness.data.DataType;
 import com.google.android.gms.fitness.data.Field;
-import com.google.android.gms.fitness.data.DataSource;
-import com.google.android.gms.fitness.request.DataSourcesRequest;
 import com.google.android.gms.fitness.request.DataReadRequest;
+import com.google.android.gms.fitness.result.DataReadResponse;
 import com.google.android.gms.fitness.result.DataReadResult;
-import com.google.android.gms.fitness.result.DataSourcesResult;
-import com.google.android.gms.fitness.data.Device;
+import com.google.android.gms.tasks.Task;
+import com.google.android.gms.tasks.Tasks;
 
-import java.text.DateFormat;
-import java.text.Format;
-import java.text.SimpleDateFormat;
-import java.util.Calendar;
 import java.util.Date;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.text.SimpleDateFormat;
-import java.util.TimeZone;
-import java.util.ArrayList;
-
 
 import static com.google.android.gms.fitness.data.Device.TYPE_WATCH;
 
@@ -74,13 +64,13 @@ public class ActivityHistory {
         this.googleFitManager = googleFitManager;
     }
 
-    public ReadableArray getActivitySamples(long startTime, long endTime) {
+    public ReadableArray getActivitySamples(long startTime, long endTime, int bucketInterval, String bucketUnit) {
         WritableArray results = Arguments.createArray();
         DataReadRequest readRequest = new DataReadRequest.Builder()
                 .aggregate(DataType.TYPE_STEP_COUNT_DELTA, DataType.AGGREGATE_STEP_COUNT_DELTA)
                 .aggregate(DataType.TYPE_CALORIES_EXPENDED, DataType.AGGREGATE_CALORIES_EXPENDED)
                 .aggregate(DataType.TYPE_DISTANCE_DELTA, DataType.AGGREGATE_DISTANCE_DELTA)
-                .bucketByActivitySegment(1, TimeUnit.SECONDS)
+                .bucketByActivitySegment(bucketInterval, HelperUtil.processBucketUnit(bucketUnit))
                 .setTimeRange(startTime, endTime, TimeUnit.MILLISECONDS)
                 .build();
 
@@ -141,7 +131,43 @@ public class ActivityHistory {
                 results.pushMap(map);
             }
         }
-        
+
         return results;
+    }
+
+    public ReadableArray getMoveMinutes(long startTime, long endTime, int bucketInterval, String bucketUnit) {
+        DataType[] fitnessDataTypes = {DataType.TYPE_MOVE_MINUTES, DataType.AGGREGATE_MOVE_MINUTES};
+        DataReadRequest readReq = HelperUtil.createDataReadRequest(
+                startTime,
+                endTime,
+                bucketInterval,
+                bucketUnit,
+                fitnessDataTypes);
+        Integer[] accessOpts = {FitnessOptions.ACCESS_READ};
+        GoogleSignInOptionsExtension fitnessOptions = HelperUtil.createSignInFitnessOptions(DataType.TYPE_MOVE_MINUTES, accessOpts);
+
+        GoogleSignInAccount googleSignInAccount =
+                GoogleSignIn.getAccountForExtension(this.mReactContext, fitnessOptions);
+
+        WritableArray moveMinutes = Arguments.createArray();
+
+        try {
+            Task<DataReadResponse> task = Fitness.getHistoryClient(this.mReactContext, googleSignInAccount)
+                    .readData(readReq);
+            DataReadResponse response = Tasks.await(task, 30, TimeUnit.SECONDS);
+            if (response.getStatus().isSuccess()) {
+                for (Bucket bucket : response.getBuckets()) {
+                    for (DataSet dataSet : bucket.getDataSets()) {
+                        HelperUtil.processDataSet(TAG, dataSet, moveMinutes);
+                    }
+                }
+                return moveMinutes;
+            } else {
+                Log.w(TAG, "There was an error reading data from Google Fit" + response.getStatus().toString());
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Exception: " + e);
+        }
+        return moveMinutes;
     }
 }
