@@ -46,7 +46,7 @@ public class HeartrateHistory {
     private DataSet Dataset;
     private DataType dataType;
 
-    private static final String TAG = "Weights History";
+    private static final String TAG = "Heart Rate History";
 
     public HeartrateHistory(ReactContext reactContext, GoogleFitManager googleFitManager, DataType dataType){
         this.mReactContext = reactContext;
@@ -55,24 +55,19 @@ public class HeartrateHistory {
     }
 
     public HeartrateHistory(ReactContext reactContext, GoogleFitManager googleFitManager){
-        this(reactContext, googleFitManager, DataType.TYPE_WEIGHT);
+        this(reactContext, googleFitManager, DataType.TYPE_HEART_RATE_BPM);
     }
 
     public void setDataType(DataType dataType) {
         this.dataType = dataType;
     }
 
-    public ReadableArray getHistory(long startTime, long endTime) {
-        DateFormat dateFormat = DateFormat.getDateInstance();
-        // for height we need to take time, since GoogleFit foundation - https://stackoverflow.com/questions/28482176/read-the-height-in-googlefit-in-android
-
+    public ReadableArray getHistory(long startTime, long endTime, int bucketInterval, String bucketUnit) {
         DataReadRequest.Builder readRequestBuilder = new DataReadRequest.Builder()
                 .read(this.dataType)
                 .setTimeRange(startTime, endTime, TimeUnit.MILLISECONDS);
         if (this.dataType == HealthDataTypes.TYPE_BLOOD_PRESSURE) {
-            readRequestBuilder.bucketByTime(1, TimeUnit.DAYS);
-        } else {
-            readRequestBuilder.setLimit(5); // need only one height, since it's unchangable
+            readRequestBuilder.bucketByTime(bucketInterval, HelperUtil.processBucketUnit(bucketUnit));
         }
 
         DataReadRequest readRequest = readRequestBuilder.build();
@@ -100,10 +95,12 @@ public class HeartrateHistory {
     }
 
     public boolean save(ReadableMap sample) {
+        // TODO: how to save blood pressure?
+
         this.Dataset = createDataForRequest(
-                this.dataType,    // for height, it would be DataType.TYPE_HEIGHT
+                this.dataType,    // for heart rate, it would be DataType.TYPE_HEART_RATE_BPM
                 DataSource.TYPE_RAW,
-                sample.getDouble("value"),                  // weight in kgs, height in metrs
+                sample.getDouble("value"),                  // heart rate in bmp
                 (long)sample.getDouble("date"),              // start time
                 (long)sample.getDouble("date"),                // end time
                 TimeUnit.MILLISECONDS                // Time Unit, for example, TimeUnit.MILLISECONDS
@@ -202,8 +199,8 @@ public class HeartrateHistory {
                 stepMap.putDouble("startDate", dp.getStartTime(TimeUnit.MILLISECONDS));
                 stepMap.putDouble("endDate", dp.getEndTime(TimeUnit.MILLISECONDS));
                 if (this.dataType == HealthDataTypes.TYPE_BLOOD_PRESSURE) {
-                    stepMap.putDouble("value2", dp.getValue(HealthFields.FIELD_BLOOD_PRESSURE_DIASTOLIC).asFloat());
-                    stepMap.putDouble("value", dp.getValue(HealthFields.FIELD_BLOOD_PRESSURE_SYSTOLIC).asFloat());
+                    stepMap.putDouble("diastolic", dp.getValue(HealthFields.FIELD_BLOOD_PRESSURE_DIASTOLIC).asFloat());
+                    stepMap.putDouble("systolic", dp.getValue(HealthFields.FIELD_BLOOD_PRESSURE_SYSTOLIC).asFloat());
                 } else {
                   stepMap.putDouble("value", dp.getValue(field).asFloat());
                 }
